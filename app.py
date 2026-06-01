@@ -6,7 +6,7 @@ from io import BytesIO
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 
-st.set_page_config(page_title="Pendências Marcos", page_icon="✅", layout="wide")
+st.set_page_config(page_title="Pendências Ações", page_icon="✅", layout="wide")
 
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
@@ -31,7 +31,7 @@ def gerar_protocolo():
 
 
 def carregar_pendencias():
-    res = supabase.table("pendencias_marcos").select("*").order("criado_em", desc=True).execute()
+    res = supabase.table("pendencias_acoes").select("*").order("criado_em", desc=True).execute()
     return pd.DataFrame(res.data or [])
 
 
@@ -46,7 +46,7 @@ def inserir_pendencia(nome, cidade, comunidade, descricao):
         "status": "Aberta",
         "responsavel": "Marcos",
     }
-    supabase.table("pendencias_marcos").insert(dados).execute()
+    supabase.table("pendencias_acoes").insert(dados).execute()
     return protocolo
 
 
@@ -54,7 +54,7 @@ def atualizar_pendencia(id_pendencia, status, observacao):
     dados = {"status": status, "observacao_retorno": observacao, "atualizado_em": datetime.utcnow().isoformat()}
     if status == "Concluída":
         dados["concluido_em"] = datetime.utcnow().isoformat()
-    supabase.table("pendencias_marcos").update(dados).eq("id", id_pendencia).execute()
+    supabase.table("pendencias_acoes").update(dados).eq("id", id_pendencia).execute()
 
 
 def gerar_excel(df):
@@ -71,7 +71,7 @@ def gerar_pdf(df):
     width, height = A4
     y = height - 45
     c.setFont("Helvetica-Bold", 14)
-    c.drawString(40, y, "Relatório de Pendências - Marcos")
+    c.drawString(40, y, "Relatório de Pendências - Ações")
     y -= 30
     c.setFont("Helvetica", 9)
     for _, row in df.iterrows():
@@ -91,10 +91,10 @@ def status_classe(status):
         "Concluída":"concluida", "Cancelada":"cancelada"
     }.get(status, "aberta")
 
-st.title("✅ Pendências Marcos")
+st.title("✅ Pendências Ações")
 st.caption("Controle de pendências, ações e solicitações por cidade e comunidade.")
 
-menu = st.sidebar.radio("Menu", ["➕ Abrir Pendência", "📋 Painel do Marcos", "📊 Relatórios / Admin"])
+menu = st.sidebar.radio("Menu", ["➕ Abrir Pendência", "📋 Painel de Pendências", "📊 Relatórios / Admin"])
 
 if menu == "➕ Abrir Pendência":
     st.header("📝 Abrir nova pendência")
@@ -111,8 +111,8 @@ if menu == "➕ Abrir Pendência":
             protocolo = inserir_pendencia(nome, cidade, comunidade, descricao)
             st.success(f"Pendência aberta com sucesso. Protocolo: {protocolo}")
 
-elif menu == "📋 Painel do Marcos":
-    st.header("📋 Painel do Marcos")
+elif menu == "📋 Painel do Ações":
+    st.header("📋 Painel do Ações")
     df = carregar_pendencias()
     if df.empty:
         st.info("Nenhuma pendência cadastrada.")
@@ -173,5 +173,5 @@ elif menu == "📊 Relatórios / Admin":
     if comunidade_f != "Todas": dff = dff[dff["comunidade"] == comunidade_f]
     if status_f: dff = dff[dff["status"].isin(status_f)]
     st.dataframe(dff, use_container_width=True)
-    st.download_button("⬇️ Baixar Excel", data=gerar_excel(dff), file_name="pendencias_marcos.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    st.download_button("⬇️ Baixar PDF", data=gerar_pdf(dff), file_name="pendencias_marcos.pdf", mime="application/pdf")
+    st.download_button("⬇️ Baixar Excel", data=gerar_excel(dff), file_name="pendencias_acoes.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    st.download_button("⬇️ Baixar PDF", data=gerar_pdf(dff), file_name="pendencias_acoes.pdf", mime="application/pdf")
