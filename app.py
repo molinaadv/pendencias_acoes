@@ -20,95 +20,141 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 TABELA = "pendencias_acoes"
 
 STATUS_ATIVOS = ["Aberta", "Em andamento", "Aguardando informação"]
-TODOS_STATUS = STATUS_ATIVOS + ["Concluída", "Cancelada"]
+TODOS_STATUS = ["Aberta", "Em andamento", "Aguardando informação", "Concluída", "Cancelada"]
 
 
 st.markdown("""
 <style>
-[data-testid="stSidebar"] {display: none;}
-.block-container {padding-top: 0.5rem; max-width: 760px;}
+[data-testid="stSidebar"] {display:none;}
+[data-testid="stHeader"] {background:transparent;}
+.block-container {padding:0 1rem 6rem 1rem; max-width:760px;}
+
+html, body, .stApp, [data-testid="stAppViewContainer"] {
+    background:#ffffff !important;
+    color:#0f172a !important;
+}
+
+* {
+    color:inherit;
+}
 
 .mobile-header {
-    background: linear-gradient(135deg,#073763,#0b5394);
-    padding: 22px 20px 26px 20px;
-    border-radius: 0 0 24px 24px;
-    color: white;
-    margin-bottom: 20px;
+    background:linear-gradient(135deg,#073763,#0b5394);
+    padding:28px 22px 34px 22px;
+    border-radius:0 0 28px 28px;
+    color:white !important;
+    margin:0 -1rem 24px -1rem;
+    box-shadow:0 8px 18px rgba(7,55,99,.22);
 }
 
 .mobile-title {
-    font-size: 28px;
-    font-weight: 800;
+    font-size:30px;
+    font-weight:900;
+    color:white !important;
+    display:flex;
+    align-items:center;
+    gap:10px;
 }
 
 .mobile-subtitle {
-    font-size: 14px;
-    opacity: .9;
+    font-size:15px;
+    color:white !important;
+    opacity:.96;
+    margin-top:8px;
 }
 
 .hello-card {
     display:flex;
     align-items:center;
     gap:14px;
-    margin: 12px 0 18px 0;
+    margin:20px 0 18px 0;
 }
 
 .avatar {
-    width:55px;
-    height:55px;
+    width:58px;
+    height:58px;
     border-radius:50%;
     background:#073763;
-    color:white;
+    color:white !important;
     display:flex;
     align-items:center;
     justify-content:center;
-    font-weight:800;
-    font-size:24px;
+    font-weight:900;
+    font-size:26px;
+}
+
+.hello-title {
+    font-size:26px;
+    font-weight:900;
+    color:#0f172a !important;
+}
+
+.hello-subtitle {
+    font-size:16px;
+    color:#64748b !important;
 }
 
 .summary-grid {
     display:grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns:repeat(3,1fr);
     gap:12px;
-    margin-bottom:22px;
+    margin-bottom:24px;
 }
 
 .summary-card {
     border-radius:18px;
-    padding:16px 12px;
+    padding:18px 12px;
+    min-height:112px;
     border:1px solid #e5e7eb;
-    min-height:105px;
 }
 
 .summary-number {
-    font-size:34px;
+    font-size:36px;
     font-weight:900;
-    color:#0f172a;
+    color:#0f172a !important;
 }
 
 .summary-label {
     font-size:14px;
-    font-weight:800;
+    font-weight:900;
 }
 
-.blue-card {background:#eff6ff; color:#1d4ed8;}
-.orange-card {background:#fff7ed; color:#c2410c;}
-.purple-card {background:#f5f3ff; color:#6d28d9;}
+.blue-card {background:#eff6ff;color:#1d4ed8 !important;}
+.orange-card {background:#fff7ed;color:#c2410c !important;}
+.purple-card {background:#f5f3ff;color:#6d28d9 !important;}
 
 .section-title {
-    font-size:26px;
+    font-size:28px;
     font-weight:900;
+    color:#0f172a !important;
     margin-top:8px;
 }
 
+.section-subtitle {
+    color:#64748b !important;
+    font-size:16px;
+    margin-bottom:16px;
+}
+
+.filter-box {
+    background:#ffffff;
+    border:1px solid #d1d5db;
+    border-radius:15px;
+    padding:14px 16px;
+    margin:12px 0 18px 0;
+    color:#0f172a !important;
+    font-size:18px;
+}
+
 .card {
-    background:#fff;
+    background:#ffffff !important;
+    color:#0f172a !important;
     border:1px solid #e5e7eb;
-    border-radius:20px;
-    padding:18px;
+    border-radius:22px;
+    padding:20px;
     margin-bottom:14px;
-    box-shadow:0 4px 14px rgba(15,23,42,.08);
-    border-left:6px solid #1d4ed8;
+    box-shadow:0 5px 16px rgba(15,23,42,.09);
+    border-left:7px solid #2563eb;
 }
 
 .card.andamento-border {border-left-color:#f59e0b;}
@@ -116,39 +162,54 @@ st.markdown("""
 .card.concluida-border {border-left-color:#16a34a;}
 .card.cancelada-border {border-left-color:#dc2626;}
 
+.card * {
+    color:#0f172a !important;
+}
+
 .protocolo {
-    font-size:20px;
+    font-size:22px;
     font-weight:900;
-    color:#0f172a;
+    color:#0f172a !important;
 }
 
 .badge {
-    padding:6px 12px;
-    border-radius:18px;
-    font-weight:800;
-    font-size:13px;
+    padding:7px 14px;
+    border-radius:20px;
+    font-weight:900;
+    font-size:14px;
     float:right;
 }
 
-.aberta {background:#dbeafe;color:#1d4ed8}
-.andamento{background:#ffedd5;color:#c2410c}
-.aguardando{background:#ede9fe;color:#6d28d9}
-.concluida{background:#dcfce7;color:#15803d}
-.cancelada{background:#fee2e2;color:#b91c1c}
+.badge.aberta {background:#dbeafe;color:#1d4ed8 !important;}
+.badge.andamento {background:#ffedd5;color:#c2410c !important;}
+.badge.aguardando {background:#ede9fe;color:#6d28d9 !important;}
+.badge.concluida {background:#dcfce7;color:#15803d !important;}
+.badge.cancelada {background:#fee2e2;color:#b91c1c !important;}
+
+.info-line {
+    font-size:17px;
+    line-height:1.8;
+    color:#0f172a !important;
+}
+
+.info-line b {
+    font-weight:900;
+}
 
 .desc-box {
-    background:#f8fafc;
-    padding:10px;
-    border-radius:12px;
-    margin-top:10px;
-    color:#334155;
+    background:#f8fafc !important;
+    color:#0f172a !important;
+    padding:13px 15px;
+    border-radius:14px;
+    margin-top:14px;
+    font-size:17px;
 }
 
 .bottom-nav {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
+    position:fixed;
+    bottom:0;
+    left:0;
+    right:0;
     background:#ffffff;
     border-top:1px solid #e5e7eb;
     display:flex;
@@ -160,61 +221,61 @@ st.markdown("""
 .nav-item {
     text-align:center;
     font-size:13px;
-    color:#334155;
-    font-weight:700;
+    color:#334155 !important;
+    font-weight:800;
 }
 
 .fab {
-    position: fixed;
-    right: 24px;
-    bottom: 82px;
-    width:62px;
-    height:62px;
+    position:fixed;
+    right:24px;
+    bottom:86px;
+    width:64px;
+    height:64px;
     border-radius:50%;
     background:#073763;
-    color:white;
+    color:white !important;
     display:flex;
     align-items:center;
     justify-content:center;
-    font-size:38px;
+    font-size:42px;
     font-weight:300;
-    box-shadow:0 8px 18px rgba(0,0,0,.25);
-    z-index:9999;
+    box-shadow:0 8px 20px rgba(0,0,0,.28);
+    z-index:9998;
+}
+
+.stButton > button {
+    background:#ffffff !important;
+    color:#0f172a !important;
+    border:1px solid #d1d5db !important;
+    border-radius:12px !important;
+    font-weight:800 !important;
+}
+
+.stButton > button p {
+    color:#0f172a !important;
+}
+
+input, textarea {
+    background:#f1f5f9 !important;
+    color:#0f172a !important;
+    border-radius:12px !important;
+}
+
+label, p, span, div {
+    color:inherit;
 }
 
 @media(max-width:768px){
-    .block-container {padding:0 0.8rem 5.5rem 0.8rem;}
-    .summary-grid {grid-template-columns: repeat(3, 1fr);}
-    .summary-card {padding:12px 8px; min-height:95px;}
-    .summary-number {font-size:30px;}
+    .block-container {padding:0 0.85rem 6rem 0.85rem;}
+    .mobile-header {margin:0 -0.85rem 24px -0.85rem; padding:28px 22px 34px 22px;}
+    .mobile-title {font-size:25px;}
+    .mobile-subtitle {font-size:14px;}
+    .summary-grid {grid-template-columns:repeat(3,1fr); gap:10px;}
+    .summary-card {padding:14px 10px; min-height:100px;}
+    .summary-number {font-size:32px;}
     .summary-label {font-size:12px;}
-    .mobile-title {font-size:24px;}
-}
-html, body, [data-testid="stAppViewContainer"], .stApp {
-    background: #ffffff !important;
-    color: #0f172a !important;
-}
-
-[data-testid="stHeader"] {
-    background: #ffffff !important;
-}
-
-[data-testid="stMarkdownContainer"],
-[data-testid="stMarkdownContainer"] p,
-[data-testid="stMarkdownContainer"] div,
-[data-testid="stMarkdownContainer"] span {
-    color: #0f172a !important;
-}
-
-.card,
-.card *,
-.desc-box,
-.desc-box * {
-    color: #0f172a !important;
-}
-
-.desc-box {
-    background: #f8fafc !important;
+    .protocolo {font-size:20px;}
+    .card {padding:18px;}
 }
 </style>
 """, unsafe_allow_html=True)
@@ -272,6 +333,7 @@ def gerar_pdf(df):
     c = canvas.Canvas(output, pagesize=A4)
     width, height = A4
     y = height - 45
+
     c.setFont("Helvetica-Bold", 14)
     c.drawString(40, y, "Relatório de Pendências - Ações")
     y -= 30
@@ -286,6 +348,7 @@ def gerar_pdf(df):
         linha = f"{row.get('protocolo','')} | {row.get('status','')} | {row.get('cidade','')} | {row.get('comunidade','')} | {row.get('nome_solicitante','')}"
         c.drawString(40, y, linha[:120])
         y -= 14
+
         desc = str(row.get("descricao", "")).replace("\n", " ")
         c.drawString(55, y, desc[:110])
         y -= 22
@@ -315,11 +378,8 @@ def card_border(status):
     }.get(status, "")
 
 
-def get_query_page():
-    try:
-        return st.query_params.get("page", "pendencias")
-    except Exception:
-        return "pendencias"
+def get_page():
+    return st.query_params.get("page", "pendencias")
 
 
 def set_page(page):
@@ -327,7 +387,7 @@ def set_page(page):
     st.rerun()
 
 
-page = get_query_page()
+page = get_page()
 
 
 st.markdown("""
@@ -342,19 +402,18 @@ if page == "pendencias":
     df = carregar_pendencias()
 
     if df.empty:
-        abertas = andamento = aguardando = concluidas = 0
+        abertas = andamento = aguardando = 0
     else:
         abertas = int((df["status"] == "Aberta").sum())
         andamento = int((df["status"] == "Em andamento").sum())
         aguardando = int((df["status"] == "Aguardando informação").sum())
-        concluidas = int((df["status"] == "Concluída").sum())
 
     st.markdown("""
     <div class="hello-card">
         <div class="avatar">A</div>
         <div>
-            <div style="font-size:25px;font-weight:900;color:#0f172a;">Olá, Ações 👋</div>
-            <div style="font-size:15px;color:#64748b;">Aqui estão suas pendências</div>
+            <div class="hello-title">Olá, Ações 👋</div>
+            <div class="hello-subtitle">Aqui estão suas pendências</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -377,7 +436,7 @@ if page == "pendencias":
     """, unsafe_allow_html=True)
 
     st.markdown("<div class='section-title'>Pendências</div>", unsafe_allow_html=True)
-    st.caption("Exibindo pendências ativas")
+    st.markdown("<div class='section-subtitle'>Exibindo pendências ativas</div>", unsafe_allow_html=True)
 
     if df.empty:
         st.info("Nenhuma pendência cadastrada.")
@@ -413,15 +472,17 @@ if page == "pendencias":
         else:
             for _, row in dff.iterrows():
                 criado = str(row.get("criado_em", ""))[:10]
+                status = row.get("status", "Aberta")
+
                 st.markdown(f"""
-                <div class="card {card_border(row.get('status',''))}">
+                <div class="card {card_border(status)}">
                     <span class="protocolo">{row.get('protocolo','')}</span>
-                    <span class="badge {status_classe(row.get('status',''))}">{row.get('status','')}</span>
+                    <span class="badge {status_classe(status)}">{status}</span>
                     <br><br>
-                    <b>Cidade:</b> {row.get('cidade','')}<br>
-                    <b>Comunidade:</b> {row.get('comunidade','')}<br>
-                    <b>Solicitante:</b> {row.get('nome_solicitante','')}<br>
-                    <b>Data:</b> {criado}
+                    <div class="info-line">🏢 <b>Cidade:</b> {row.get('cidade','')}</div>
+                    <div class="info-line">👥 <b>Comunidade:</b> {row.get('comunidade','')}</div>
+                    <div class="info-line">👤 <b>Solicitante:</b> {row.get('nome_solicitante','')}</div>
+                    <div class="info-line">📅 <b>Data:</b> {criado}</div>
                     <div class="desc-box">{row.get('descricao','')}</div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -524,16 +585,16 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-col_nav1, col_nav2, col_nav3 = st.columns(3)
+col1, col2, col3 = st.columns(3)
 
-with col_nav1:
+with col1:
     if st.button("🏠 Pendências"):
         set_page("pendencias")
 
-with col_nav2:
+with col2:
     if st.button("➕ Nova"):
         set_page("nova")
 
-with col_nav3:
+with col3:
     if st.button("📊 Relatórios"):
         set_page("relatorios")
