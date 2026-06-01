@@ -111,8 +111,8 @@ if menu == "➕ Abrir Pendência":
             protocolo = inserir_pendencia(nome, cidade, comunidade, descricao)
             st.success(f"Pendência aberta com sucesso. Protocolo: {protocolo}")
 
-elif menu == "📋 Painel do Ações":
-    st.header("📋 Painel do Ações")
+elif menu == "📋 Painel do Pendências":
+    st.header("📋 Painel do Pendências")
     df = carregar_pendencias()
     if df.empty:
         st.info("Nenhuma pendência cadastrada.")
