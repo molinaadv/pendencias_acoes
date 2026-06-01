@@ -1,113 +1,104 @@
+import io
+from datetime import datetime, timezone
+
+import pandas as pd
 import streamlit as st
 from supabase import create_client, Client
-import pandas as pd
-from datetime import datetime, date
-from io import BytesIO
 from reportlab.lib.pagesizes import A4
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 
-# =========================
-# CONFIGURAÇÃO DA PÁGINA
-# =========================
+# =============================
+# CONFIGURAÇÃO
+# =============================
 st.set_page_config(
     page_title="Pendências Marcos",
     page_icon="✅",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="collapsed",
 )
 
-# =========================
-# SUPABASE
-# =========================
-SUPABASE_URL = st.secrets["SUPABASE_URL"]
-SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+STATUS_ATIVOS = ["Aberta", "Em andamento", "Aguardando informação"]
+STATUS_TODOS = ["Aberta", "Em andamento", "Aguardando informação", "Concluída", "Cancelada"]
 
-TABELA = "pendencias_marcos"
-
-# =========================
-# CSS MOBILE
-# =========================
-st.markdown("""
-<style>
-    .block-container {
-        padding-top: 1rem;
-        padding-left: 1rem;
-        padding-right: 1rem;
-        max-width: 1100px;
-    }
-    .main-title {
-        background: linear-gradient(135deg, #003366, #0055a5);
-        color: white;
-        padding: 18px;
+# =============================
+# ESTILO MOBILE
+# =============================
+st.markdown(
+    """
+    <style>
+    .main {background-color: #f7f9fc;}
+    .block-container {padding-top: 1rem; padding-bottom: 2rem; max-width: 1050px;}
+    h1, h2, h3 {color: #0b1f3a;}
+    div[data-testid="stMetric"] {
+        background: white;
         border-radius: 18px;
-        text-align: center;
-        margin-bottom: 20px;
+        padding: 18px;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.07);
+        border: 1px solid #e6edf7;
     }
     .card {
         background: white;
         border-radius: 18px;
-        padding: 16px;
+        padding: 18px;
         margin-bottom: 14px;
-        box-shadow: 0 4px 14px rgba(0,0,0,0.08);
-        border-left: 6px solid #0055a5;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.07);
+        border-left: 6px solid #0b4ea2;
     }
-    .card-andamento { border-left-color: #f39c12; }
-    .card-aguardando { border-left-color: #8e44ad; }
-    .card-concluida { border-left-color: #27ae60; }
-    .card-cancelada { border-left-color: #7f8c8d; }
-    .status {
+    .card-andamento {border-left-color: #f59e0b;}
+    .card-aguardando {border-left-color: #7c3aed;}
+    .card-concluida {border-left-color: #16a34a;}
+    .card-cancelada {border-left-color: #64748b;}
+    .badge {
         display: inline-block;
-        padding: 5px 12px;
+        padding: 5px 10px;
         border-radius: 999px;
         font-size: 13px;
         font-weight: 700;
-        background: #eaf2ff;
-        color: #0055a5;
+        background: #e7f0ff;
+        color: #0b4ea2;
     }
-    .metric-card {
-        background: #ffffff;
-        border-radius: 18px;
-        padding: 18px;
-        box-shadow: 0 4px 14px rgba(0,0,0,0.08);
-        text-align: center;
-        margin-bottom: 10px;
-    }
-    .metric-number {
-        font-size: 34px;
-        font-weight: 800;
-        color: #003366;
-    }
-    .small-text {
-        color: #5f6b7a;
-        font-size: 14px;
-    }
-    div.stButton > button {
+    .small {color: #5b677a; font-size: 14px;}
+    .desc {
+        background: #f2f5f9;
         border-radius: 12px;
-        min-height: 42px;
-        font-weight: 700;
-        width: 100%;
+        padding: 10px;
+        margin-top: 10px;
     }
-    @media (max-width: 768px) {
-        .main-title h1 { font-size: 24px; }
-        .block-container { padding-left: .7rem; padding-right: .7rem; }
+    @media (max-width: 700px) {
+        .block-container {padding-left: 0.8rem; padding-right: 0.8rem;}
+        h1 {font-size: 1.7rem;}
+        h2 {font-size: 1.3rem;}
+        .card {padding: 15px;}
     }
-</style>
-""", unsafe_allow_html=True)
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
-# =========================
+# =============================
+# SUPABASE
+# =============================
+@st.cache_resource
+def conectar_supabase() -> Client:
+    url = st.secrets["SUPABASE_URL"]
+    key = st.secrets["SUPABASE_KEY"]
+    return create_client(url, key)
+
+supabase = conectar_supabase()
+
+# =============================
 # FUNÇÕES
-# =========================
-def criar_protocolo(id_registro: int) -> str:
-    return f"PM-{id_registro:06d}"
+# =============================
+def gerar_protocolo() -> str:
+    return "MAR-" + datetime.now().strftime("%Y%m%d%H%M%S")
 
-
+@st.cache_data(ttl=20)
 def carregar_pendencias() -> pd.DataFrame:
     try:
-        resp = supabase.table(TABELA).select("*").order("criado_em", desc=True).execute()
-        dados = resp.data or []
+        res = supabase.table("pendencias_marcos").select("*").order("criado_em", desc=True).execute()
+        dados = res.data or []
         df = pd.DataFrame(dados)
         if df.empty:
             return pd.DataFrame(columns=[
@@ -120,83 +111,71 @@ def carregar_pendencias() -> pd.DataFrame:
         st.error(f"Erro ao carregar pendências: {e}")
         return pd.DataFrame()
 
+def limpar_cache():
+    st.cache_data.clear()
 
-def abrir_pendencia(nome, cidade, comunidade, descricao):
-    novo = {
+def criar_pendencia(nome: str, cidade: str, comunidade: str, descricao: str):
+    dados = {
+        "protocolo": gerar_protocolo(),
         "nome_solicitante": nome.strip(),
         "cidade": cidade.strip(),
         "comunidade": comunidade.strip(),
         "descricao": descricao.strip(),
         "status": "Aberta",
         "responsavel": "Marcos",
-        "criado_em": datetime.utcnow().isoformat(),
-        "atualizado_em": datetime.utcnow().isoformat()
     }
-    resp = supabase.table(TABELA).insert(novo).execute()
-    registro = resp.data[0]
-    protocolo = criar_protocolo(registro["id"])
-    supabase.table(TABELA).update({"protocolo": protocolo}).eq("id", registro["id"]).execute()
-    return protocolo
+    res = supabase.table("pendencias_marcos").insert(dados).execute()
+    limpar_cache()
+    return res.data[0] if res.data else dados
 
-
-def atualizar_status(id_pendencia, status, observacao=""):
+def atualizar_pendencia(item_id: int, status: str, observacao: str):
     dados = {
         "status": status,
-        "observacao_retorno": observacao,
-        "atualizado_em": datetime.utcnow().isoformat()
+        "observacao_retorno": observacao.strip() if observacao else None,
+        "atualizado_em": datetime.now(timezone.utc).isoformat(),
     }
     if status == "Concluída":
-        dados["concluido_em"] = datetime.utcnow().isoformat()
-    supabase.table(TABELA).update(dados).eq("id", id_pendencia).execute()
+        dados["concluido_em"] = datetime.now(timezone.utc).isoformat()
+    supabase.table("pendencias_marcos").update(dados).eq("id", item_id).execute()
+    limpar_cache()
 
 
-def filtrar_df(df, cidade, comunidade, status, mostrar_concluidas, data_inicio, data_fim):
+def formatar_data(valor):
+    if not valor or pd.isna(valor):
+        return "-"
+    try:
+        return pd.to_datetime(valor).strftime("%d/%m/%Y %H:%M")
+    except Exception:
+        return str(valor)
+
+
+def aplicar_filtros(df: pd.DataFrame, mostrar_concluidas: bool, cidade: str, comunidade: str, status: str) -> pd.DataFrame:
     if df.empty:
         return df
-
-    df2 = df.copy()
-    df2["criado_em_dt"] = pd.to_datetime(df2["criado_em"], errors="coerce").dt.date
-
+    filtrado = df.copy()
     if not mostrar_concluidas:
-        df2 = df2[~df2["status"].isin(["Concluída", "Cancelada"])]
-
+        filtrado = filtrado[filtrado["status"].isin(STATUS_ATIVOS)]
     if cidade != "Todas":
-        df2 = df2[df2["cidade"] == cidade]
-
+        filtrado = filtrado[filtrado["cidade"] == cidade]
     if comunidade != "Todas":
-        df2 = df2[df2["comunidade"] == comunidade]
-
+        filtrado = filtrado[filtrado["comunidade"] == comunidade]
     if status != "Todos":
-        df2 = df2[df2["status"] == status]
-
-    if data_inicio:
-        df2 = df2[df2["criado_em_dt"] >= data_inicio]
-    if data_fim:
-        df2 = df2[df2["criado_em_dt"] <= data_fim]
-
-    return df2
+        filtrado = filtrado[filtrado["status"] == status]
+    return filtrado
 
 
-def gerar_excel(df):
-    output = BytesIO()
-    colunas = [
-        "protocolo", "nome_solicitante", "cidade", "comunidade",
-        "descricao", "status", "responsavel", "observacao_retorno",
-        "criado_em", "concluido_em"
-    ]
-    df_export = df[[c for c in colunas if c in df.columns]].copy()
+def excel_bytes(df: pd.DataFrame) -> bytes:
+    output = io.BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        df_export.to_excel(writer, index=False, sheet_name="Pendências Marcos")
-    output.seek(0)
-    return output
+        df.to_excel(writer, index=False, sheet_name="Pendencias")
+    return output.getvalue()
 
 
-def gerar_pdf(df):
-    output = BytesIO()
-    doc = SimpleDocTemplate(output, pagesize=A4)
+def pdf_bytes(df: pd.DataFrame) -> bytes:
+    output = io.BytesIO()
+    doc = SimpleDocTemplate(output, pagesize=A4, rightMargin=24, leftMargin=24, topMargin=24, bottomMargin=24)
     styles = getSampleStyleSheet()
     elementos = []
-
     elementos.append(Paragraph("Relatório de Pendências - Marcos", styles["Title"]))
     elementos.append(Paragraph(f"Gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M')}", styles["Normal"]))
     elementos.append(Spacer(1, 12))
@@ -204,196 +183,150 @@ def gerar_pdf(df):
     if df.empty:
         elementos.append(Paragraph("Nenhuma pendência encontrada.", styles["Normal"]))
     else:
-        dados = [["Protocolo", "Cidade", "Comunidade", "Solicitante", "Status"]]
+        dados = [["Protocolo", "Cidade", "Comunidade", "Solicitante", "Status", "Abertura"]]
         for _, row in df.iterrows():
             dados.append([
                 str(row.get("protocolo", "")),
-                str(row.get("cidade", ""))[:18],
-                str(row.get("comunidade", ""))[:18],
-                str(row.get("nome_solicitante", ""))[:18],
-                str(row.get("status", ""))
+                str(row.get("cidade", "")),
+                str(row.get("comunidade", "")),
+                str(row.get("nome_solicitante", "")),
+                str(row.get("status", "")),
+                formatar_data(row.get("criado_em", "")),
             ])
-
         tabela = Table(dados, repeatRows=1)
         tabela.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#003366")),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0b4ea2")),
             ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
             ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
             ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("FONTSIZE", (0, 0), (-1, -1), 8),
+            ("FONTSIZE", (0, 0), (-1, -1), 7),
         ]))
         elementos.append(tabela)
 
     doc.build(elementos)
-    output.seek(0)
-    return output
+    return output.getvalue()
 
+# =============================
+# APP
+# =============================
+st.title("✅ Pendências Marcos")
+st.caption("Controle de pendências, ações e solicitações por cidade e comunidade.")
 
-def classe_card(status):
-    if status == "Em andamento":
-        return "card card-andamento"
-    if status == "Aguardando informação":
-        return "card card-aguardando"
-    if status == "Concluída":
-        return "card card-concluida"
-    if status == "Cancelada":
-        return "card card-cancelada"
-    return "card"
+df = carregar_pendencias()
 
-# =========================
-# CABEÇALHO
-# =========================
-st.markdown("""
-<div class='main-title'>
-    <h1>✅ Pendências Marcos</h1>
-    <p>Controle de pendências por cidade e comunidade</p>
-</div>
-""", unsafe_allow_html=True)
-
-# =========================
-# MENU
-# =========================
 menu = st.sidebar.radio(
     "Menu",
-    ["Nova Pendência", "Pendências do Marcos", "Relatórios"]
+    ["Nova Pendência", "Pendências do Marcos", "Relatórios"],
 )
 
-# =========================
-# NOVA PENDÊNCIA
-# =========================
 if menu == "Nova Pendência":
-    st.subheader("➕ Abrir nova pendência")
+    st.header("📝 Abrir nova pendência")
+    with st.form("form_nova_pendencia", clear_on_submit=True):
+        nome = st.text_input("Nome do solicitante")
+        cidade = st.text_input("Cidade")
+        comunidade = st.text_input("Comunidade")
+        descricao = st.text_area("Descrição da pendência", height=140)
+        enviado = st.form_submit_button("Abrir pendência", use_container_width=True)
 
-    with st.form("form_nova_pendencia"):
-        nome = st.text_input("Nome do solicitante *")
-        cidade = st.text_input("Cidade *")
-        comunidade = st.text_input("Comunidade *")
-        descricao = st.text_area("Descrição da pendência *", height=140)
-        enviar = st.form_submit_button("Abrir pendência")
-
-    if enviar:
+    if enviado:
         if not nome or not cidade or not comunidade or not descricao:
-            st.warning("Preencha todos os campos obrigatórios.")
+            st.warning("Preencha todos os campos: nome, cidade, comunidade e descrição.")
         else:
-            try:
-                protocolo = abrir_pendencia(nome, cidade, comunidade, descricao)
-                st.success(f"Pendência aberta com sucesso! Protocolo: {protocolo}")
-            except Exception as e:
-                st.error(f"Erro ao abrir pendência: {e}")
+            criado = criar_pendencia(nome, cidade, comunidade, descricao)
+            st.success(f"Pendência aberta com sucesso. Protocolo: {criado.get('protocolo')}")
 
-# =========================
-# PENDÊNCIAS DO MARCOS
-# =========================
 elif menu == "Pendências do Marcos":
-    st.subheader("📋 Pendências do Marcos")
-    df = carregar_pendencias()
+    st.header("📱 Pendências do Marcos")
 
-    total_abertas = int((df["status"] == "Aberta").sum()) if not df.empty else 0
-    total_andamento = int((df["status"] == "Em andamento").sum()) if not df.empty else 0
-    total_aguardando = int((df["status"] == "Aguardando informação").sum()) if not df.empty else 0
+    total_abertas = len(df[df["status"] == "Aberta"]) if not df.empty else 0
+    total_andamento = len(df[df["status"] == "Em andamento"]) if not df.empty else 0
+    total_aguardando = len(df[df["status"] == "Aguardando informação"]) if not df.empty else 0
 
     c1, c2, c3 = st.columns(3)
-    with c1:
-        st.markdown(f"<div class='metric-card'><div class='metric-number'>{total_abertas}</div><div>Abertas</div></div>", unsafe_allow_html=True)
-    with c2:
-        st.markdown(f"<div class='metric-card'><div class='metric-number'>{total_andamento}</div><div>Em andamento</div></div>", unsafe_allow_html=True)
-    with c3:
-        st.markdown(f"<div class='metric-card'><div class='metric-number'>{total_aguardando}</div><div>Aguardando info.</div></div>", unsafe_allow_html=True)
+    c1.metric("Abertas", total_abertas)
+    c2.metric("Em andamento", total_andamento)
+    c3.metric("Aguardando info.", total_aguardando)
 
-    st.markdown("### Filtros")
+    st.subheader("Filtros")
+    mostrar_concluidas = st.checkbox("Mostrar concluídas e canceladas", value=False)
+
     cidades = ["Todas"] + sorted(df["cidade"].dropna().unique().tolist()) if not df.empty else ["Todas"]
     comunidades = ["Todas"] + sorted(df["comunidade"].dropna().unique().tolist()) if not df.empty else ["Todas"]
 
-    f1, f2 = st.columns(2)
-    with f1:
-        cidade_filtro = st.selectbox("Cidade", cidades)
-    with f2:
-        comunidade_filtro = st.selectbox("Comunidade", comunidades)
+    f1, f2, f3 = st.columns(3)
+    cidade_filtro = f1.selectbox("Cidade", cidades)
+    comunidade_filtro = f2.selectbox("Comunidade", comunidades)
+    status_filtro = f3.selectbox("Status", ["Todos"] + STATUS_TODOS)
 
-    f3, f4 = st.columns(2)
-    with f3:
-        status_filtro = st.selectbox("Status", ["Todos", "Aberta", "Em andamento", "Aguardando informação", "Concluída", "Cancelada"])
-    with f4:
-        mostrar_concluidas = st.checkbox("Mostrar concluídas/canceladas", value=False)
+    filtrado = aplicar_filtros(df, mostrar_concluidas, cidade_filtro, comunidade_filtro, status_filtro)
 
-    df_filtrado = filtrar_df(df, cidade_filtro, comunidade_filtro, status_filtro, mostrar_concluidas, None, None)
-
-    if df_filtrado.empty:
-        st.info("Nenhuma pendência encontrada com esses filtros.")
+    if filtrado.empty:
+        st.info("Nenhuma pendência encontrada com os filtros selecionados.")
     else:
-        for _, row in df_filtrado.iterrows():
+        for _, row in filtrado.iterrows():
             status = row.get("status", "Aberta")
-            criado = pd.to_datetime(row.get("criado_em"), errors="coerce")
-            criado_txt = criado.strftime("%d/%m/%Y") if pd.notna(criado) else ""
-            protocolo = row.get("protocolo") or criar_protocolo(int(row.get("id")))
+            classe = "card"
+            if status == "Em andamento": classe += " card-andamento"
+            if status == "Aguardando informação": classe += " card-aguardando"
+            if status == "Concluída": classe += " card-concluida"
+            if status == "Cancelada": classe += " card-cancelada"
 
             st.markdown(f"""
-            <div class='{classe_card(status)}'>
-                <h3>{protocolo} <span class='status'>{status}</span></h3>
-                <p><b>Cidade:</b> {row.get('cidade','')}</p>
-                <p><b>Comunidade:</b> {row.get('comunidade','')}</p>
-                <p><b>Solicitante:</b> {row.get('nome_solicitante','')}</p>
-                <p><b>Data:</b> {criado_txt}</p>
-                <p><b>Descrição:</b><br>{row.get('descricao','')}</p>
-                <p class='small-text'><b>Retorno:</b> {row.get('observacao_retorno') or '-'}</p>
+            <div class="{classe}">
+                <div><b>{row.get('protocolo', '')}</b> <span class="badge">{status}</span></div>
+                <div class="small">Cidade: <b>{row.get('cidade', '')}</b> | Comunidade: <b>{row.get('comunidade', '')}</b></div>
+                <div class="small">Solicitante: <b>{row.get('nome_solicitante', '')}</b> | Aberta em: {formatar_data(row.get('criado_em'))}</div>
+                <div class="desc">{row.get('descricao', '')}</div>
+                <div class="small">Retorno: {row.get('observacao_retorno') or '-'}</div>
             </div>
             """, unsafe_allow_html=True)
 
-            with st.expander(f"Atualizar {protocolo}"):
+            with st.expander(f"Atualizar {row.get('protocolo', '')}"):
                 novo_status = st.selectbox(
                     "Novo status",
-                    ["Aberta", "Em andamento", "Aguardando informação", "Concluída", "Cancelada"],
-                    index=["Aberta", "Em andamento", "Aguardando informação", "Concluída", "Cancelada"].index(status) if status in ["Aberta", "Em andamento", "Aguardando informação", "Concluída", "Cancelada"] else 0,
-                    key=f"status_{row['id']}"
+                    STATUS_TODOS,
+                    index=STATUS_TODOS.index(status) if status in STATUS_TODOS else 0,
+                    key=f"status_{row['id']}",
                 )
-                obs = st.text_area("Observação/retorno", value=row.get("observacao_retorno") or "", key=f"obs_{row['id']}")
-                if st.button("Salvar atualização", key=f"btn_{row['id']}"):
-                    atualizar_status(row["id"], novo_status, obs)
-                    st.success("Pendência atualizada com sucesso!")
+                observacao = st.text_area(
+                    "Observação / retorno",
+                    value=row.get("observacao_retorno") or "",
+                    key=f"obs_{row['id']}",
+                )
+                if st.button("Salvar atualização", key=f"salvar_{row['id']}", use_container_width=True):
+                    atualizar_pendencia(int(row["id"]), novo_status, observacao)
+                    st.success("Pendência atualizada.")
                     st.rerun()
 
-# =========================
-# RELATÓRIOS
-# =========================
 elif menu == "Relatórios":
-    st.subheader("📊 Relatórios")
-    df = carregar_pendencias()
+    st.header("📊 Relatórios")
 
+    mostrar_concluidas = st.checkbox("Incluir concluídas e canceladas no relatório", value=True)
     cidades = ["Todas"] + sorted(df["cidade"].dropna().unique().tolist()) if not df.empty else ["Todas"]
     comunidades = ["Todas"] + sorted(df["comunidade"].dropna().unique().tolist()) if not df.empty else ["Todas"]
 
-    c1, c2 = st.columns(2)
-    with c1:
-        cidade_filtro = st.selectbox("Cidade", cidades, key="rel_cidade")
-        data_inicio = st.date_input("Data inicial", value=date(date.today().year, date.today().month, 1))
-    with c2:
-        comunidade_filtro = st.selectbox("Comunidade", comunidades, key="rel_comunidade")
-        data_fim = st.date_input("Data final", value=date.today())
+    r1, r2, r3 = st.columns(3)
+    cidade_filtro = r1.selectbox("Cidade", cidades, key="rel_cidade")
+    comunidade_filtro = r2.selectbox("Comunidade", comunidades, key="rel_comunidade")
+    status_filtro = r3.selectbox("Status", ["Todos"] + STATUS_TODOS, key="rel_status")
 
-    status_filtro = st.selectbox("Status", ["Todos", "Aberta", "Em andamento", "Aguardando informação", "Concluída", "Cancelada"], key="rel_status")
-    mostrar_concluidas = st.checkbox("Incluir concluídas/canceladas", value=True, key="rel_concluidas")
+    filtrado = aplicar_filtros(df, mostrar_concluidas, cidade_filtro, comunidade_filtro, status_filtro)
 
-    df_rel = filtrar_df(df, cidade_filtro, comunidade_filtro, status_filtro, mostrar_concluidas, data_inicio, data_fim)
-    st.write(f"Total encontrado: **{len(df_rel)}**")
+    st.write(f"Total encontrado: **{len(filtrado)}**")
+    st.dataframe(filtrado, use_container_width=True, hide_index=True)
 
-    if not df_rel.empty:
-        st.dataframe(df_rel[["protocolo", "nome_solicitante", "cidade", "comunidade", "descricao", "status", "criado_em"]], use_container_width=True)
-
-    excel = gerar_excel(df_rel)
-    pdf = gerar_pdf(df_rel)
-
-    c3, c4 = st.columns(2)
-    with c3:
-        st.download_button(
-            "Baixar Excel",
-            data=excel,
-            file_name="pendencias_marcos.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-    with c4:
-        st.download_button(
-            "Baixar PDF",
-            data=pdf,
-            file_name="pendencias_marcos.pdf",
-            mime="application/pdf"
-        )
+    col_excel, col_pdf = st.columns(2)
+    col_excel.download_button(
+        "⬇️ Baixar Excel",
+        data=excel_bytes(filtrado),
+        file_name="relatorio_pendencias_marcos.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True,
+    )
+    col_pdf.download_button(
+        "⬇️ Baixar PDF",
+        data=pdf_bytes(filtrado),
+        file_name="relatorio_pendencias_marcos.pdf",
+        mime="application/pdf",
+        use_container_width=True,
+    )
