@@ -6,7 +6,12 @@ from io import BytesIO
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 
-st.set_page_config(page_title="Pendências Ações", page_icon="✅", layout="wide")
+st.set_page_config(
+    page_title="Pendências Ações",
+    page_icon="✅",
+    layout="centered",
+    initial_sidebar_state="collapsed"
+)
 
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
@@ -184,6 +189,32 @@ st.markdown("""
     .summary-number {font-size:30px;}
     .summary-label {font-size:12px;}
     .mobile-title {font-size:24px;}
+}
+html, body, [data-testid="stAppViewContainer"], .stApp {
+    background: #ffffff !important;
+    color: #0f172a !important;
+}
+
+[data-testid="stHeader"] {
+    background: #ffffff !important;
+}
+
+[data-testid="stMarkdownContainer"],
+[data-testid="stMarkdownContainer"] p,
+[data-testid="stMarkdownContainer"] div,
+[data-testid="stMarkdownContainer"] span {
+    color: #0f172a !important;
+}
+
+.card,
+.card *,
+.desc-box,
+.desc-box * {
+    color: #0f172a !important;
+}
+
+.desc-box {
+    background: #f8fafc !important;
 }
 </style>
 """, unsafe_allow_html=True)
