@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import requests
 from supabase import create_client
 from datetime import datetime
 from io import BytesIO
@@ -15,12 +16,38 @@ st.set_page_config(
 
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
+APP_PASSWORD = st.secrets.get("APP_PASSWORD", "123456")
+BOT_API_SECRET = st.secrets.get("BOT_API_SECRET", "molina_acoes_2026")
+BOT_NOTIFY_URL = st.secrets.get(
+    "BOT_NOTIFY_URL",
+    "https://bot-pendencias-acoes.onrender.com/notificar-conclusao"
+)
+
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 TABELA = "pendencias_acoes"
-
 STATUS_ATIVOS = ["Aberta", "Em andamento", "Aguardando informação"]
 TODOS_STATUS = ["Aberta", "Em andamento", "Aguardando informação", "Concluída", "Cancelada"]
+
+
+# =========================
+# SENHA
+# =========================
+if "logado" not in st.session_state:
+    st.session_state.logado = False
+
+if not st.session_state.logado:
+    st.title("🔐 Pendências Ações")
+    senha = st.text_input("Digite a senha de acesso", type="password")
+
+    if st.button("Entrar"):
+        if senha == APP_PASSWORD:
+            st.session_state.logado = True
+            st.rerun()
+        else:
+            st.error("Senha incorreta.")
+
+    st.stop()
 
 
 st.markdown("""
@@ -134,16 +161,6 @@ html, body, .stApp, [data-testid="stAppViewContainer"] {
     color:#64748b !important;
     font-size:16px;
     margin-bottom:16px;
-}
-
-.filter-box {
-    background:#ffffff;
-    border:1px solid #d1d5db;
-    border-radius:15px;
-    padding:14px 16px;
-    margin:12px 0 18px 0;
-    color:#0f172a !important;
-    font-size:18px;
 }
 
 .card {
@@ -309,15 +326,63 @@ def inserir_pendencia(nome, cidade, comunidade, descricao):
     return protocolo
 
 
-def atualizar_pendencia(id_pendencia, status, observacao):
+def notificar_conclusao_bot(protocolo, observacao):
+    try:
+        resp = requests.post(
+            BOT_NOTIFY_URL,
+            headers={"X-API-KEY": BOT_API_SECRET},
+            json={
+                "protocolo": protocolo,
+                "concluido_por": "Painel Pendências Ações",
+                "email_concluido_por": "",
+                "observacao": observacao or ""
+            },
+            timeout=30
+        )
+
+        return resp.status_code, resp.text
+
+    except Exception as e:
+        return 0, str(e)
+
+
+def atualizar_pendencia(row, status, observacao):
+    protocolo = row.get("protocolo", "")
+    status_anterior = row.get("status", "")
+
+    if status == "Concluída":
+        codigo, texto = notificar_conclusao_bot(protocolo, observacao)
+
+        if codigo in [200, 201]:
+            return True, "Pendência concluída e notificação solicitada ao bot."
+        else:
+            return False, f"Erro ao notificar conclusão: {codigo} - {texto}"
+
     dados = {
         "status": status,
         "observacao_retorno": observacao,
         "atualizado_em": datetime.utcnow().isoformat()
     }
-    if status == "Concluída":
-        dados["concluido_em"] = datetime.utcnow().isoformat()
-    supabase.table(TABELA).update(dados).eq("id", id_pendencia).execute()
+
+    if status == "Cancelada":
+        dados["concluido_em"] = None
+
+    supabase.table(TABELA).update(dados).eq("id", row["id"]).execute()
+
+    try:
+        supabase.table("historico_pendencias").insert({
+            "pendencia_id": row.get("id"),
+            "protocolo": protocolo,
+            "usuario": "Painel Pendências Ações",
+            "email_usuario": "",
+            "status_anterior": status_anterior,
+            "status_novo": status,
+            "observacao": observacao or "Atualização pelo painel"
+        }).execute()
+    except Exception:
+        pass
+
+    return True, "Pendência atualizada."
 
 
 def gerar_excel(df):
@@ -506,9 +571,13 @@ if page == "pendencias":
                     )
 
                     if st.button("Salvar atualização", key=f"btn_{row['id']}"):
-                        atualizar_pendencia(row["id"], novo_status, obs)
-                        st.success("Pendência atualizada.")
-                        st.rerun()
+                        ok, mensagem = atualizar_pendencia(row, novo_status, obs)
+
+                        if ok:
+                            st.success(mensagem)
+                            st.rerun()
+                        else:
+                            st.error(mensagem)
 
     if st.button("➕ Nova pendência"):
         set_page("nova")
